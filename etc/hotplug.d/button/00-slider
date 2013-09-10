@@ -1,0 +1,33 @@
+#!/bin/sh
+# Handle slider events
+. /lib/functions.sh
+
+LOCK=/var/run/slider.lock
+
+# --- Run Update (asynchronous) ---
+run_handler() {
+# Only start if not already active
+	if ! mkdir "$LOCK" 2>/dev/null; then
+		logger "update-script already running"
+		exit 0
+	fi
+
+	# Read processing script from /etc/config/system
+		config_load system
+		config_get handler slider handler
+		logger "handler-script: $handler"
+		eval $handler                   # Execute handler
+		rm -fr "$LOCK"
+}
+
+# --- Main Program ------------------
+logger "Process event '$ACTION' for $BUTTON"
+
+# Update button file to match event
+  if [ "$ACTION" = "pressed" ]; then
+    echo "1" > "/var/run/$BUTTON"
+    else
+      echo "0" > "/var/run/$BUTTON"
+      fi
+                          # Run asynchronously
+      run_handler &       # (do not block event handling)

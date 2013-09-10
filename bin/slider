@@ -1,0 +1,35 @@
+#!/bin/sh
+# Processing script for the slider
+. /lib/functions.sh
+. /lib/functions/leds.sh
+status_led=tp-link\:blue\:system
+
+status_led_blink_preinit
+
+logger "Execute $0"
+# Read status of slider
+if [ `cat /var/run/BTN_0` = "0" ]; then
+	slider="ROUTER"
+elif [ `cat /var/run/BTN_1` = "0" ]; then
+	slider="3G"
+else
+	slider="AP"
+fi
+logger "Status of slider: $slider"
+uci set system.slider.mode="$slider"
+
+# Remove old symlinks
+rm /etc/config/dhcp
+rm /etc/config/network
+rm /etc/config/wireless
+
+# Set new symlinks
+ln -s /etc/config/dhcp.$slider     /etc/config/dhcp
+ln -s /etc/config/network.$slider  /etc/config/network
+ln -s /etc/config/wireless.$slider /etc/config/wireless
+
+# Restart network and DHCP
+/etc/init.d/network restart
+/etc/init.d/dnsmasq restart
+
+status_led_on
