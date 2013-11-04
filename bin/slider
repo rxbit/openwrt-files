@@ -15,21 +15,30 @@ elif [ `cat /var/run/BTN_1` = "0" ]; then
 else
 	slider="AP"
 fi
-logger "Status of slider: $slider"
-uci set system.slider.mode="$slider"
 
-# Remove old symlinks
-rm /etc/config/dhcp
-rm /etc/config/network
-rm /etc/config/wireless
+local mode
+config_load system
+config_get mode "slider" "mode" "AP"
+if [ "X$mode" != "X$slider" ];then
+  logger "Setting Status of slider: $mode -> $slider"
 
-# Set new symlinks
-ln -s /etc/config/dhcp.$slider     /etc/config/dhcp
-ln -s /etc/config/network.$slider  /etc/config/network
-ln -s /etc/config/wireless.$slider /etc/config/wireless
+  # Remove old symlinks
+  rm /etc/config/dhcp
+  rm /etc/config/network
+  rm /etc/config/wireless
+  rm /etc/config/firewall
 
-# Restart network and DHCP
-/etc/init.d/network restart
-/etc/init.d/dnsmasq restart
+  # Set new symlinks
+  ln -s /etc/config/dhcp.$slider     /etc/config/dhcp
+  ln -s /etc/config/network.$slider  /etc/config/network
+  ln -s /etc/config/wireless.$slider /etc/config/wireless
+  ln -s /etc/config/firewall.$slider /etc/config/firewall
 
+  # Restart network and DHCP
+  /etc/init.d/network restart
+  /etc/init.d/firewall restart
+  /etc/init.d/dnsmasq restart
+
+  uci set system.slider.mode="$slider"
+fi
 status_led_on

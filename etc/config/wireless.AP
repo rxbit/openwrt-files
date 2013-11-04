@@ -1,20 +1,33 @@
-config wifi-device  radio0
-	option type     mac80211
-	option channel  11
-	option hwmode	11ng
-	option path	'platform/ar933x_wmac'
-	option htmode	HT20
-	list ht_capab	SHORT-GI-20
-	list ht_capab	SHORT-GI-40
-	list ht_capab	RX-STBC1
-	list ht_capab	DSSS_CCK-40
-	# REMOVE THIS LINE TO ENABLE WIFI:
-	option disabled 1
+
+config wifi-device 'radio0'
+	option type 'mac80211'
+	option channel '11'
+	option hwmode '11ng'
+	option path 'platform/ar933x_wmac'
+	option htmode 'HT20'
+	list ht_capab 'SHORT-GI-20'
+	list ht_capab 'SHORT-GI-40'
+	list ht_capab 'RX-STBC1'
+	list ht_capab 'DSSS_CCK-40'
+	option country 'US'
+	option disabled '0'
+	option txpower '20'
 
 config wifi-iface
-	option device   radio0
-	option network  lan
-	option mode     ap
-	option ssid     OpenWrt
-	option encryption none
+	option network 'wwan'
+	option ssid 'LIANNIMEI2'
+	option encryption 'psk2'
+	option device 'radio0'
+	option mode 'sta'
+	option bssid '20:DC:E6:3A:58:30'
+	option key 'Cisan211'
+
+config wifi-iface
+	option device 'radio0'
+	option mode 'ap'
+	option ssid 'pingMe'
+	option encryption 'psk-mixed'
+	option key 'liannimeia'
+	option network 'lan'
+	option hidden '1'
 

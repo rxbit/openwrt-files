@@ -1,31 +1,48 @@
+
 config dnsmasq
-	option domainneeded	1
-	option boguspriv	1
-	option filterwin2k	0  # enable for dial on demand
-	option localise_queries	1
-	option rebind_protection 1  # disable if upstream must serve RFC1918 addresses
-	option rebind_localhost 1  # enable for RBL checking and similar services
-	#list rebind_domain example.lan  # whitelist RFC1918 responses for domains
-	option local	'/lan/'
-	option domain	'lan'
-	option expandhosts	1
-	option nonegcache	0
-	option authoritative	1
-	option readethers	1
-	option leasefile	'/tmp/dhcp.leases'
-	option resolvfile	'/tmp/resolv.conf.auto'
-	#list server		'/mycompany.local/1.2.3.4'
-	#option nonwildcard	1
-	#list interface		br-lan
-	#list notinterface	lo
-	#list bogusnxdomain     '64.94.110.11'
+	option domainneeded '1'
+	option boguspriv '1'
+	option localise_queries '1'
+	option rebind_protection '1'
+	option rebind_localhost '1'
+	option local '/lan/'
+	option domain 'lan'
+	option expandhosts '1'
+	option authoritative '1'
+	option readethers '1'
+	option leasefile '/tmp/dhcp.leases'
+	option resolvfile '/tmp/resolv.conf.auto'
+	list server '/.edu.cn/202.116.128.1'
 
-config dhcp lan
-	option interface	lan
-	option start 	100
-	option limit	150
-	option leasetime	12h
+config dhcp 'lan'
+	option interface 'lan'
+	option start '100'
+	option limit '150'
+	option leasetime '24h'
 
-config dhcp wan
-	option interface	wan
-	option ignore	1
+config dhcp 'wan'
+	option interface 'wan'
+	option ignore '1'
+
+config domain
+
+config host
+	option mac '24:ec:99:12:83:b7'
+	option ip '192.168.1.233'
+	option name 'Toshiba-L840-WLAN'
+
+config host
+	option name 'Kindle'
+	option mac 'f0:4f:7c:9e:0f:5c'
+	option ip '192.168.1.103'
+
+config host
+	option name 'Toshiba-L840-LAN'
+	option mac '04:7d:7b:bb:01:c3'
+	option ip '192.168.1.133'
+
+config host
+	option name 'Nesus-S'
+	option mac '78:d6:f0:c5:8e:04'
+	option ip '192.168.1.12'
+

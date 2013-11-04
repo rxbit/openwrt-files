@@ -1,0 +1,149 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+EXTRA_COMMANDS="status"
+
+##############################################################
+# Variables
+TC=/usr/sbin/tc #-------- location of traffic control
+IPT=/usr/sbin/iptables #- location ofiptables
+IF=eth0 #---------------- interface
+IFB=ifb0
+UP_RATE=92160 #---------- 100mbits * 90%
+NAT_UP_RATE=90316 #------ (100mbits - 2mbits) * 90%
+NAT_DOWN_RATE=100352 #--- (100mbits - 2mbits)
+NET_UP_RATE=1843 #------- 2mbits * 90%
+DOWN_RATE=102400 #------- 100mbits
+NET_DOWN_RATE=2048 #----- 2mbits
+MODULES='sch_hfsc sch_ingress cls_flow cls_u32'
+
+
+##############################################################
+status() {
+	echo "### Statistics ###"
+	echo "# qdiscs #"
+	tc -s qdisc show dev $IF
+	echo "# class #"
+	tc -s class show dev $IF
+ 
+	echo "# filter #"
+	tc -s filter show dev $IF root
+	tc -s filter show dev $IF parent 1:
+}
+##############################################################
+
+##############################################################
+stop() {
+	# Delete existing qdiscs (hide errors)
+	$TC qdisc del dev $IF root    2> /dev/null > /dev/null
+	$TC qdisc del dev $IF ingress 2> /dev/null > /dev/null
+ 
+	# Unload modules
+	for i in $MODULES ; do
+		rmmod $i
+	done
+}
+##############################################################
+
+###############################################################################
+start() {
+# Load modules
+for i in $MODULES ; do
+	insmod $i
+done
+ 
+insmod ifb
+insmod act_connmark 
+insmod act_mirred
+
+ifconfig $IF txqueuelen 1000
+ifconfig $IFB up txqueuelen 50
+# reset qdiscs
+$TC qdisc del dev $IF root    2> /dev/null > /dev/null
+$TC qdisc del dev $IF ingress 2> /dev/null > /dev/null
+$TC qdisc del dev $IFB root   2> /dev/null > /dev/null
+# echo "1"
+###############################################################################
+$TC qdisc add dev $IF root	     handle	 1:	  hfsc default 104
+$TC class add dev $IF parent 1:  classid 1:1  hfsc sc rate ${UP_RATE}kbit 		ul rate ${UP_RATE}kbit
+$TC class add dev $IF parent 1:1 classid 1:10 hfsc ls rate ${NET_UP_RATE}kbit	ul rate ${UP_RATE}kbit
+$TC class add dev $IF parent 1:1 classid 1:20 hfsc ls rate ${NAT_UP_RATE}kbit	ul rate ${UP_RATE}kbit
+# echo "2"
+###
+$TC class add dev $IF parent 1:10 classid 1:101 hfsc rt m1 ${NET_UP_RATE}kbit d  100ms m2 $((3*$NET_UP_RATE/10))kbit ls m1 ${NET_UP_RATE}kbit d 50ms m2 $((5*$NET_UP_RATE/10))kbit # real time
+$TC class add dev $IF parent 1:10 classid 1:102 hfsc sc m1 0 d  100ms m2 $((5*$NET_UP_RATE/10))kbit # http
+$TC class add dev $IF parent 1:10 classid 1:103 hfsc sc m1 0 d  1000ms m2 $((1*$NET_UP_RATE/10))kbit # Small Bluk
+$TC class add dev $IF parent 1:10 classid 1:104 hfsc sc m1 0 d 4000ms m2 $((1*$NET_UP_RATE/10))kbit # Big Bulk
+# echo "3"
+###############################################################################
+
+$TC filter add dev $IF parent 1: prio 1 protocol ip handle 101 fw flowid 1:101
+$TC filter add dev $IF parent 1: prio 2 protocol ip handle 102 fw flowid 1:102
+$TC filter add dev $IF parent 1: prio 3 protocol ip handle 103 fw flowid 1:103
+$TC filter add dev $IF parent 1: prio 4 protocol ip handle 104 fw flowid 1:104
+$TC filter add dev $IF parent 1: prio 5 protocol ip handle 20 fw flowid 1:20
+# echo "4"
+
+##########################################
+#Download
+##########################################
+
+$TC qdisc add dev $IF ingress
+
+$TC qdisc add dev $IFB root handle 1: hfsc default 104
+$TC class add dev $IFB parent 1:  classid 1:1  hfsc sc rate ${DOWN_RATE}kbit 	    ul rate ${DOWN_RATE}kbit
+$TC class add dev $IFB parent 1:1 classid 1:10 hfsc ls rate ${NET_DOWN_RATE}kbit	ul rate ${DOWN_RATE}kbit
+$TC class add dev $IFB parent 1:1 classid 1:20 hfsc ls rate ${NAT_DOWN_RATE}kbit	ul rate ${DOWN_RATE}kbit
+
+$TC class add dev $IFB parent 1:10 classid 1:101 hfsc rt m1 ${NET_DOWN_RATE}kbit d  100ms m2 $((3*$NET_DOWN_RATE/10))kbit ls m1 ${NET_DOWN_RATE}kbit d 50ms m2 $((5*$NET_DOWN_RATE/10))kbit # real time
+$TC class add dev $IFB parent 1:10 classid 1:102 hfsc sc m1 0 d  100ms m2 $((5*$NET_DOWN_RATE/10))kbit # http
+$TC class add dev $IFB parent 1:10 classid 1:103 hfsc sc m1 0 d 1000ms m2 $((1*$NET_DOWN_RATE/10))kbit # Small Bluk
+$TC class add dev $IFB parent 1:10 classid 1:104 hfsc sc m1 0 d 4000ms m2 $((1*$NET_DOWN_RATE/10))kbit # Big Bulk
+
+$TC filter add dev $IF parent ffff: protocol ip prio 1 u32 match u32 0 0 flowid 1:1 action mirred egress redirect dev ifb0
+
+$TC filter add dev $IFB parent 1: prio 1 protocol ip handle 101 fw flowid 1:101
+$TC filter add dev $IFB parent 1: prio 2 protocol ip handle 102 fw flowid 1:102
+$TC filter add dev $IFB parent 1: prio 3 protocol ip handle 103 fw flowid 1:103
+$TC filter add dev $IFB parent 1: prio 4 protocol ip handle 104 fw flowid 1:104
+$TC filter add dev $IFB parent 1: prio 5 protocol ip handle 20 fw flowid 1:20
+# echo "5"
+#iptables.
+
+IPTM="$IPT -t mangle"
+
+$IPTM -F
+$IPTM -X
+
+$IPTM -N Default
+$IPTM -A Default -m mark --mark 0 -d 10.0.0.0/8 -j MARK --set-mark 20
+$IPTM -A Default -m mark --mark 0 -d 202.116.128.0/17 -j MARK --set-mark 20
+$IPTM -A Default -m mark --mark 0 -d 202.114.0.0/19 -j MARK --set-mark 20
+$IPTM -A Default -m mark --mark 0 -d 222.200.0.0/14 -j MARK --set-mark 20
+
+$IPTM -A Default -m mark --mark 0 -p icmp -j MARK --set-mark 101
+$IPTM -A Default -m mark --mark 0 -p tcp -m multiport --dports 22,53 -j MARK --set-mark 101
+$IPTM -A Default -m mark --mark 0 -p udp -m multiport --dports 22,53 -j MARK --set-mark 101
+$IPTM -A Default -m mark --mark 0 -p tcp -m multiport --dports 3724 -j MARK --set-mark 101
+$IPTM -A Default -m mark --mark 0 -p udp -m multiport --dports 3724,5000:5500 -j MARK --set-mark 101
+$IPTM -A Default -m mark --mark 0 -p tcp -m multiport --dports 20,21,25,80,110,443,993,995,5190,3389,3390,5900,1080,1194 -j MARK --set-mark 102
+$IPTM -A Default -m mark --mark 0 -j MARK --set-mark 104
+$IPTM -A POSTROUTING -o $IF -j Default
+
+#################
+
+$IPTM -N Default_dn
+$IPTM -A Default_dn -m mark --mark 0 -s 10.0.0.0/8 -j MARK --set-mark 20
+$IPTM -A Default_dn -m mark --mark 0 -s 202.116.128.0/17 -j MARK --set-mark 20
+$IPTM -A Default_dn -m mark --mark 0 -s 202.114.0.0/19 -j MARK --set-mark 20
+$IPTM -A Default_dn -m mark --mark 0 -s 222.200.0.0/14 -j MARK --set-mark 20
+
+$IPTM -A Default_dn -m mark --mark 0 -p icmp -j MARK --set-mark 101
+$IPTM -A Default_dn -m mark --mark 0 -p tcp -m multiport --sports 22,53 -j MARK --set-mark 101
+$IPTM -A Default_dn -m mark --mark 0 -p udp -m multiport --sports 22,53 -j MARK --set-mark 101
+$IPTM -A Default_dn -m mark --mark 0 -p tcp -m multiport --sports 3724 -j MARK --set-mark 101
+$IPTM -A Default_dn -m mark --mark 0 -p udp -m multiport --sports 3724,5000:5500 -j MARK --set-mark 101
+$IPTM -A Default_dn -m mark --mark 0 -p tcp -m multiport --sports 20,21,25,80,110,443,993,995,5190,3389,3390,5900,1080,1194 -j MARK --set-mark 102
+$IPTM -A Default_dn -m mark --mark 0 -j MARK --set-mark 104
+$IPTM -A PREROUTING -i $IF -j Default_dn
+}
