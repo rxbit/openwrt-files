@@ -1,0 +1,3 @@
+45 3 * * * /etc/init.d/njit restart
+*/20 * * * * cat /dev/null > /tmp/njit.log
+
